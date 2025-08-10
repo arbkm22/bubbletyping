@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bubble Typing — Ashkam Edition</title>
+<style>
+  :root{
+    --sky:#dff6ff; /* light sky */
+    --sea:#b3e5ff;
+    --sun:#ffd166;
+    --ink:#222;
+    --pink:#ff9ac2;
+    --mint:#b8f2e6;
+    --lav:#cbb2fe;
+    --leaf:#c6f68d;
+  }
+  html,body{
+    height:100%;
+  }
+  body{
+    margin:0;
+    background: linear-gradient(180deg,var(--sky), var(--sea));
+    font-family: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, "Comic Sans MS", sans-serif;
+    color: var(--ink);
+    overflow:hidden;
+  }
+  #ui{
+    position: absolute;
+    inset: 0;
+    pointer-events:none;
+  }
+  .hud{
+    position:absolute; left:12px; top:12px; right:12px; display:flex; gap:12px; align-items:center; justify-content:space-between;
+    pointer-events:auto;
+  }
+  .hud .card{
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(6px);
+    border: 2px solid rgba(0,0,0,0.08);
+    border-radius: 16px;
+    padding: 10px 14px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.07);
+  }
+  .title{
+    display:flex; align-items:center; gap:8px; font-weight:800;
+  }
+  .title .dot{ width:10px; height:10px; border-radius:50%; background:var(--sun); box-shadow:0 0 12px var(--sun); }
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  select, input[type=range], button{
+    pointer-events:auto;
+  }
+  select, button{
+    border-radius:12px; border:2px solid #0002; padding:8px 12px; background:#fff; font-weight:700;
+    box-shadow:0 4px 0 #0002; cursor:pointer;
+  }
+  button:active{ transform: translateY(1px); box-shadow:0 3px 0 #0002; }
+  .pill{
+    padding:6px 10px; border-radius:999px; background:#fff9; font-size:12px; font-weight:700; border:1px dashed #0003;
+  }
+  .stats{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .stat{ background:#fff; border-radius:12px; border:2px solid #0002; padding:6px 10px; font-weight:800; }
+  .legend{ position:absolute; left:12px; bottom:12px; display:flex; gap:8px; flex-wrap:wrap; }
+  .legend .finger{ background:#fff; border-radius:10px; padding:6px 8px; border:2px dashed #0002; font-size:12px; font-weight:800; }
+  .cloud{ position:absolute; top:0; width:160px; height:70px; background:#fff; border-radius:80px; filter: drop-shadow(0 8px 20px rgba(0,0,0,0.08)); opacity:.7; animation: float 16s linear infinite; }
+  .cloud:before, .cloud:after{ content:""; position:absolute; background:#fff; border-radius:50%; }
+  .cloud:before{ width:90px; height:90px; left:10px; top:-30px; }
+  .cloud:after{ width:110px; height:110px; right:10px; top:-40px; }
+  @keyframes float{ 0%{ transform: translateX(-20%);} 100%{ transform: translateX(120%);} }
+  #screen{
+    position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;
+  }
+  .modal{ background:#ffffffdd; border:2px solid #0002; border-radius:22px; padding:24px; text-align:center; width:min(680px, calc(100% - 32px)); box-shadow: 0 30px 60px rgba(0,0,0,0.15); pointer-events:auto; }
+  .modal h1{ margin:0 0 6px 0; font-size:28px; }
+  .modal p{ margin:4px 0; }
+  .big{ font-size:20px; font-weight:900; }
+  .btnrow{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+  .heart{ filter: drop-shadow(0 2px 0 #0002); }
+  canvas{ display:block; margin:auto; background: radial-gradient(circle at 50% 0%, #ffffff77 0%, transparent 50%); }
+</style>
+</head>
+<body>
+  <!-- Floating clouds for vibes -->
+  <div class="cloud" style="left:-10%; animation-delay:0s; top:8%"></div>
+  <div class="cloud" style="left:-30%; animation-delay:6s; top:18%; width:200px"></div>
+  <div class="cloud" style="left:-50%; animation-delay:12s; top:28%; width:130px"></div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="ui">
+    <div class="hud">
+      <div class="card title"><span class="dot"></span> <span>Bubble Typing — <span style="color:#ff5ead">Ashkam Intelligence Studios</span></span></div>
+      <div class="controls card">
+        <label class="pill">Mode
+          <select id="mode">
+            <option value="home">Home Row (asdf…)</option>
+            <option value="top">Top Row (qwerty…)</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </label>
+        <label class="pill">Speed
+          <input id="speed" type="range" min="0.5" max="3" step="0.1" value="1" />
+        </label>
+        <label class="pill">Spawn
+          <input id="spawn" type="range" min="400" max="2000" step="50" value="1000" />
+        </label>
+        <button id="startBtn">▶ Start</button>
+        <button id="pauseBtn">⏸ Pause</button>
+        <button id="resetBtn">🔄 Reset</button>
+        <button id="soundBtn">🔊 Sound</button>
+      </div>
+      <div class="stats">
+        <div class="stat">Score: <span id="score">0</span></div>
+        <div class="stat">Streak: <span id="streak">0</span></div>
+        <div class="stat">Accuracy: <span id="accuracy">100%</span></div>
+        <div class="stat">Lives: <span id="lives">❤️❤️❤️</span></div>
+        <div class="stat">WPM: <span id="wpm">0</span></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="finger">Left Pinky: A Q</div>
+      <div class="finger">Left Ring: S W</div>
+      <div class="finger">Left Middle: D E</div>
+      <div class="finger">Left Index: F R T G</div>
+      <div class="finger">Right Index: J U Y H</div>
+      <div class="finger">Right Middle: K I</div>
+      <div class="finger">Right Ring: L O</div>
+      <div class="finger">Right Pinky: ; P</div>
+    </div>
+
+    <div id="screen">
+      <div class="modal" id="intro">
+        <h1>Welcome, Ashkam! 🫧</h1>
+        <p class="big">Pop the letter-bubbles by typing their letters. Keep the sky clear!</p>
+        <p>Choose <b>Mode</b> (Home Row / Top Row / Mixed). Adjust <b>Speed</b> and <b>Spawn</b> to control the vibes.</p>
+        <div class="btnrow">
+          <button id="playIntro">Let’s Bubble! 🚀</button>
+          <button id="howBtn">How to Play?</button>
+        </div>
+      </div>
+      <div class="modal" id="how" style="display:none">
+        <h1>How to Play</h1>
+        <p>1) Bubbles fall with letters. Type the letter to pop it. 
+        2) Correct hits = score + streak + confetti. 3) Miss three bubbles and it’s 🥲</p>
+        <p>Pro tip: Home row first, then Top row. Build accuracy, then speed.</p>
+        <div class="btnrow"><button id="backBtn">Back</button></div>
+      </div>
+      <div class="modal" id="gameover" style="display:none">
+        <h1>Game Over 💥</h1>
+        <p class="big">Score: <span id="finalScore">0</span></p>
+        <div class="btnrow">
+          <button id="againBtn">Play Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ====== Utility ======
+const rand = (min,max)=> Math.random()*(max-min)+min;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+// ====== Canvas Setup ======
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize); resize();
+
+// ====== Game State ======
+let bubbles=[];
+let confetti=[];
+let lastSpawn=0;
+let running=false;
+let paused=false;
+let score=0, hits=0, misses=0, typed=0, streak=0, bestStreak=0;
+let lives=3;
+let startTime=null; // for WPM
+let lettersHome = 'asdfghjkl;';
+let lettersTop = 'qwertyuiop';
+let allowSemicolon=false; // in case some keyboards differ
+let modeSel = document.getElementById('mode');
+let speedRange = document.getElementById('speed');
+let spawnRange = document.getElementById('spawn');
+let uiScore = document.getElementById('score');
+let uiStreak = document.getElementById('streak');
+let uiAcc = document.getElementById('accuracy');
+let uiLives = document.getElementById('lives');
+let uiWpm = document.getElementById('wpm');
+
+// Sound (simple web audio bleeps)
+let audioEnabled = true;
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq=600, dur=0.06){
+  if(!audioEnabled) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type='sine'; o.frequency.value=freq; o.connect(g); g.connect(audioCtx.destination);
+  g.gain.setValueAtTime(0.0001,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.2,audioCtx.currentTime+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+dur);
+  o.start(); o.stop(audioCtx.currentTime+dur);
+}
+
+function updateStats(){
+  uiScore.textContent = score;
+  uiStreak.textContent = streak;
+  const acc = typed===0?100:Math.round((hits/typed)*100);
+  uiAcc.textContent = acc + '%';
+  uiLives.innerHTML = '❤️'.repeat(lives) + '🫧'.repeat(Math.max(0,3-lives));
+  const minutes = (Date.now()-startTime)/60000;
+  const wpm = minutes>0 ? Math.round(hits/5/minutes) : 0; // rough
+  uiWpm.textContent = wpm;
+}
+
+function poolLetters(){
+  const m = modeSel.value;
+  if(m==='home') return allowSemicolon? lettersHome : lettersHome.replace(';','');
+  if(m==='top') return lettersTop;
+  return (allowSemicolon? lettersHome : lettersHome.replace(';','')) + lettersTop;
+}
+
+class Bubble{
+  constructor(){
+    this.r = rand(26,42);
+    this.x = rand(this.r, canvas.width - this.r);
+    this.y = -this.r - 10;
+    this.letter = poolLetters()[Math.floor(Math.random()*poolLetters().length)];
+    this.speed = rand(40,80); // base per second
+    this.sway = rand(0.4,1.2);
+    this.faceOffset = rand(0,Math.PI*2);
+    this.hue = Math.floor(rand(180,260));
+  }
+  step(dt){
+    const spd = this.speed * parseFloat(speedRange.value);
+    this.y += spd * dt;
+    this.x += Math.sin((Date.now()/600 + this.faceOffset))*this.sway; // gentle sway
+  }
+  draw(){
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    const grd = ctx.createRadialGradient(this.x-this.r*0.3, this.y-this.r*0.3, this.r*0.2, this.x, this.y, this.r);
+    grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grd.addColorStop(1, `hsla(${this.hue}, 90%, 85%, 0.8)`);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.stroke();
+
+    // face
+    ctx.fillStyle = '#333';
+    const eyeY = this.y - this.r*0.15;
+    ctx.beginPath(); ctx.arc(this.x - this.r*0.25, eyeY, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(this.x + this.r*0.18, eyeY, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y+this.r*0.08, 6, 0, Math.PI);
+    ctx.strokeStyle = '#444'; ctx.stroke();
+
+    // letter badge
+    ctx.font = `bold ${this.r*0.9}px ui-rounded, system-ui, sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(0,0,0,0.15)';
+    ctx.fillText(this.letter.toUpperCase(), this.x+2, this.y+2);
+    ctx.fillStyle='#111';
+    ctx.fillText(this.letter.toUpperCase(), this.x, this.y);
+
+    ctx.restore();
+  }
+}
+
+class Particle{
+  constructor(x,y){
+    this.x=x; this.y=y; this.vx=rand(-180,180); this.vy=rand(-220, -80); this.life=1.0; this.size=rand(2,5); this.hue=Math.floor(rand(0,360));
+  }
+  step(dt){ this.vy += 420*dt; this.x += this.vx*dt; this.y += this.vy*dt; this.life -= dt*1.2; }
+  draw(){ ctx.globalAlpha=Math.max(this.life,0); ctx.fillStyle=`hsl(${this.hue} 90% 60%)`; ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+}
+
+function spawnBubble(){ bubbles.push(new Bubble()); }
+
+function gameOver(){
+  running=false; paused=false;
+  document.getElementById('finalScore').textContent = score;
+  showModal('gameover');
+}
+
+function reset(){
+  bubbles.length=0; confetti.length=0; lastSpawn=0; running=false; paused=false;
+  score=0; hits=0; misses=0; typed=0; streak=0; bestStreak=0; lives=3; startTime=null; updateStats();
+}
+
+// ====== Input Handling ======
+window.addEventListener('keydown', (e)=>{
+  if(!running || paused) return;
+  const key = e.key.length===1 ? e.key.toLowerCase() : '';
+  if(!key) return;
+  typed++;
+  // find the lowest matching bubble on screen
+  let matchIndex=-1; let matchY=-1;
+  for(let i=0;i<bubbles.length;i++){
+    if(bubbles[i].letter.toLowerCase()===key){
+      if(bubbles[i].y>matchY){ matchY=bubbles[i].y; matchIndex=i; }
+    }
+  }
+  if(matchIndex>=0){
+    // pop it
+    const b = bubbles.splice(matchIndex,1)[0];
+    for(let i=0;i<20;i++) confetti.push(new Particle(b.x,b.y));
+    score += 10 + Math.min(30, streak); // reward streak
+    streak++; bestStreak=Math.max(bestStreak,streak);
+    hits++;
+    beep(660,0.05);
+  } else {
+    streak=0; // wrong key breaks streak
+    beep(240,0.05);
+  }
+  updateStats();
+});
+
+// ====== Loop ======
+let last=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!running || paused) return;
+  if(!last) last = ts;
+  const dt = Math.min(0.033, (ts-last)/1000); // cap dt
+  last = ts;
+
+  // spawn control
+  lastSpawn += dt*1000;
+  const target = parseInt(spawnRange.value);
+  if(lastSpawn >= target){ lastSpawn = 0; spawnBubble(); }
+
+  // update
+  bubbles.forEach(b=>b.step(dt));
+  confetti.forEach(p=>p.step(dt));
+  confetti = confetti.filter(p=>p.life>0);
+
+  // check misses
+  for(let i=bubbles.length-1;i>=0;i--){
+    if(bubbles[i].y - bubbles[i].r > canvas.height){
+      bubbles.splice(i,1);
+      lives--; misses++; streak=0;
+      beep(140,0.08);
+      if(lives<=0){ gameOver(); }
+      updateStats();
+    }
+  }
+
+  // draw
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // sea waves
+  drawWaves();
+  bubbles.forEach(b=>b.draw());
+  confetti.forEach(p=>p.draw());
+}
+requestAnimationFrame(loop);
+
+function drawWaves(){
+  const t = Date.now()/1000;
+  const h = canvas.height;
+  for(let i=0;i<3;i++){
+    const yBase = h*0.85 + i*12;
+    ctx.beginPath();
+    for(let x=0;x<=canvas.width;x+=8){
+      const y = yBase + Math.sin((x*0.01)+(t*(0.7+i*0.1)))*6;
+      if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.lineWidth=3; ctx.strokeStyle = `rgba(255,255,255,${0.6 - i*0.15})`; ctx.stroke();
+  }
+}
+
+// ====== Modals ======
+const intro = document.getElementById('intro');
+const how = document.getElementById('how');
+const gameover = document.getElementById('gameover');
+function showModal(which){
+  intro.style.display = 'none'; how.style.display='none'; gameover.style.display='none';
+  if(which==='intro') intro.style.display='block';
+  if(which==='how') how.style.display='block';
+  if(which==='gameover') gameover.style.display='block';
+}
+
+// Buttons
+const playIntro = document.getElementById('playIntro');
+const howBtn = document.getElementById('howBtn');
+const backBtn = document.getElementById('backBtn');
+const againBtn = document.getElementById('againBtn');
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('pauseBtn').addEventListener('click', ()=>{ if(!running) return; paused=!paused; });
+document.getElementById('resetBtn').addEventListener('click', ()=>{ reset(); showModal('intro'); });
+document.getElementById('soundBtn').addEventListener('click', ()=>{ audioEnabled=!audioEnabled; });
+
+playIntro.addEventListener('click', ()=>{ startGame(); });
+howBtn.addEventListener('click', ()=>{ showModal('how'); });
+backBtn.addEventListener('click', ()=>{ showModal('intro'); });
+againBtn.addEventListener('click', ()=>{ reset(); startGame(); });
+
+function startGame(){
+  reset();
+  startTime=Date.now();
+  running=true; paused=false; last=0; showModal(null);
+  // spawn a quick batch at start for excitement
+  for(let i=0;i<3;i++) setTimeout(spawnBubble, i*200);
+}
+
+// ====== Small QoL: resize on start ======
+setTimeout(resize,0);
+
+// ====== Keyboard hints banner ("teacher touch") ======
+// Show gentle overlay when mode changes
+modeSel.addEventListener('change', ()=>{
+  const banner = document.createElement('div');
+  banner.textContent = modeSel.value==='home' ? 'Home Row Focus: A S D F J K L ;' : (modeSel.value==='top' ? 'Top Row Focus: Q W E R T Y U I O P' : 'Mixed Mode: Let\'s go!');
+  banner.style.position='absolute'; banner.style.left='50%'; banner.style.top='60px'; banner.style.transform='translateX(-50%)';
+  banner.style.background='#000'; banner.style.color='#fff'; banner.style.padding='8px 14px'; banner.style.borderRadius='999px'; banner.style.opacity='0.9'; banner.style.pointerEvents='none';
+  document.body.appendChild(banner);
+  setTimeout(()=>banner.remove(), 1500);
+});
+
+</script>
+</body>
+</html>
